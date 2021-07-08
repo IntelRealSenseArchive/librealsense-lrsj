@@ -70,11 +70,11 @@ namespace librealsense
 
     int get_product_line(const platform::usb_device_info &usb_info)
     {
-        if( SR300_RECOVERY == usb_info.pid && platform::RS2_USB_CLASS_VENDOR_SPECIFIC == usb_info.cls )
+        if( SR300_RECOVERY == usb_info.pid )
             return RS2_PRODUCT_LINE_SR300;
         if( ds::RS_RECOVERY_PID == usb_info.pid )
             return RS2_PRODUCT_LINE_D400;
-        if( L500_RECOVERY_PID == usb_info.pid )
+        if( L500_RECOVERY_PID == usb_info.pid || L535_RECOVERY_PID == usb_info.pid)
             return RS2_PRODUCT_LINE_L500;
         if( ds::RS_USB2_RECOVERY_PID == usb_info.pid || L500_USB2_RECOVERY_PID_OLD == usb_info.pid )
         {
@@ -130,7 +130,7 @@ namespace librealsense
                     return std::make_shared<ds_update_device>(ctx, register_device_notifications, usb);                   
                 if (SR300_RECOVERY == info.pid)
                     return std::make_shared<sr300_update_device>(ctx, register_device_notifications, usb);
-                if (L500_RECOVERY_PID == info.pid)
+                if (L500_RECOVERY_PID == info.pid || L535_RECOVERY_PID == info.pid)
                     return std::make_shared<l500_update_device>(ctx, register_device_notifications, usb);
                 if (ds::RS_USB2_RECOVERY_PID == info.pid || L500_USB2_RECOVERY_PID_OLD == info.pid)
                 {

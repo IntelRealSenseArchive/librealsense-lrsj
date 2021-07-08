@@ -18,6 +18,15 @@ extern "C" {
 #include "rs_sensor.h"
 #include "rs_frame.h"
 #include "rs_option.h"
+
+/**
+* Firmware size constants
+*/
+    const int signed_fw_size = 0x18031C;
+    const int signed_sr300_size = 0x0C025C;
+    const int unsigned_fw_size = 0x200000;
+    const int unsigned_sr300_size = 0x100000;
+
 /**
  * librealsense Recorder is intended for effective unit-testing
  * Currently supports three modes of operation:

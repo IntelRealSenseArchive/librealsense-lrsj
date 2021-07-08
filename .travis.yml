@@ -14,13 +14,11 @@ matrix:
         - |
           subst d: ../. 
         - cd d:/build
-        - cmake .. -G "Visual Studio 15 2017 Win64" -DPYTHON_EXECUTABLE="C:/Python38/python.exe" -DBUILD_PYTHON_BINDINGS=true -DPYBIND11_PYTHON_VERSION=3.8 -DBUILD_UNIT_TESTS=true -DBUILD_EXAMPLES=false -DBUILD_GRAPHICAL_EXAMPLES=false -DBUILD_WITH_TM2=false -DFORCE_RSUSB_BACKEND=true -DCHECK_FOR_UPDATES=true
+        - cmake .. -G "Visual Studio 15 2017 Win64" -DPYTHON_EXECUTABLE="C:/Python38/python.exe" -DBUILD_PYTHON_BINDINGS=true -DPYBIND11_PYTHON_VERSION=3.8 -DBUILD_UNIT_TESTS=false -DBUILD_LEGACY_LIVE_TEST=true -DBUILD_EXAMPLES=false -DBUILD_TOOLS=false -DBUILD_WITH_TM2=false -DFORCE_RSUSB_BACKEND=true
         - cmake --build . --config $LRS_RUN_CONFIG -- -m
         - cd $LRS_RUN_CONFIG
         - ls
         - ./live-test.exe -d yes -i [software-device]
-        - unset LRS_LOG_LEVEL
-        - C:/Python38/python.exe ../../unit-tests/run-unit-tests.py --verbose .
         
     - name: "Windows - cpp"
       os: windows
@@ -32,7 +30,9 @@ matrix:
         - |
           subst d: ../. 
         - cd d:/build
-        - cmake .. -G "Visual Studio 14 2015 Win64" -DBUILD_EXAMPLES=true -DBUILD_WITH_TM2=true -DCHECK_FOR_UPDATES=true
+        # Currently build on VS2017, VS2015 is temporary unavailable (Microsoft issue)
+        #- cmake .. -G "Visual Studio 14 2015 Win64" -DBUILD_EXAMPLES=true -DBUILD_WITH_TM2=true -DCHECK_FOR_UPDATES=true
+        - cmake .. -G "Visual Studio 15 2017 Win64" -DBUILD_EXAMPLES=true -DBUILD_WITH_TM2=true -DCHECK_FOR_UPDATES=true
         - cmake --build . --config $LRS_BUILD_CONFIG -- -m
         - ls $LRS_BUILD_CONFIG
 
@@ -46,7 +46,9 @@ matrix:
         - |
           subst d: ../. 
         - cd d:/build
-        - cmake .. -G "Visual Studio 14 2015 Win64" -DBUILD_EXAMPLES=false -DBUILD_CSHARP_BINDINGS=true -DDOTNET_VERSION_LIBRARY="4.5" -DDOTNET_VERSION_EXAMPLES="4.5" -DCHECK_FOR_UPDATES=true
+        # Currently build on VS2017, VS2015 is temporary unavailable (Microsoft issue)
+        #- cmake .. -G "Visual Studio 14 2015 Win64" -DBUILD_EXAMPLES=false -DBUILD_TOOLS=false -DBUILD_CSHARP_BINDINGS=true -DDOTNET_VERSION_LIBRARY="4.5" -DDOTNET_VERSION_EXAMPLES="4.5" -DCHECK_FOR_UPDATES=true
+        - cmake .. -G "Visual Studio 15 2017 Win64" -DBUILD_EXAMPLES=false -DBUILD_TOOLS=false -DBUILD_CSHARP_BINDINGS=true -DDOTNET_VERSION_LIBRARY="4.5" -DDOTNET_VERSION_EXAMPLES="4.5" -DCHECK_FOR_UPDATES=true
         - cmake --build . --config $LRS_BUILD_CONFIG -- -m
         - ls $LRS_BUILD_CONFIG
 
@@ -57,7 +59,7 @@ matrix:
       dist: xenial
       env: RS_CPP_TEST=true
       script:
-        - cmake .. -DBUILD_UNIT_TESTS=true -DBUILD_EXAMPLES=false -DBUILD_WITH_TM2=false -DCHECK_FOR_UPDATES=true
+        - cmake .. -DBUILD_UNIT_TESTS=false -DBUILD_LEGACY_LIVE_TEST=true -DBUILD_EXAMPLES=false -DBUILD_TOOLS=false -DBUILD_WITH_TM2=false -DCHECK_FOR_UPDATES=true
         - cmake --build . --config $LRS_RUN_CONFIG -- -j4
         - ./unit-tests/live-test -d yes -i [software-device]
         - for i in ./records/single_cam/*; do ./unit-tests/live-test -d yes -i ~[multicam] from "$i"; done
@@ -70,7 +72,7 @@ matrix:
       dist: xenial
       script:
         - cd ../scripts && ./pr_check.sh && cd ../build
-        - cmake .. -DBUILD_UNIT_TESTS=true -DBUILD_EXAMPLES=true -DBUILD_WITH_TM2=true -DBUILD_SHARED_LIBS=false -DCHECK_FOR_UPDATES=true -DBUILD_PYTHON_BINDINGS=true -DPYBIND11_PYTHON_VERSION=3.5
+        - cmake .. -DBUILD_EXAMPLES=true -DBUILD_WITH_TM2=true -DBUILD_SHARED_LIBS=false -DCHECK_FOR_UPDATES=true -DBUILD_PYTHON_BINDINGS=true -DPYBIND11_PYTHON_VERSION=3.5
         - cmake --build . --config $LRS_BUILD_CONFIG -- -j4
         # python3 ../unit-tests/run-unit-tests.py --verbose .
 
@@ -95,7 +97,7 @@ matrix:
       os: osx
       language: cpp
       sudo: required
-      osx_image: xcode7
+      osx_image: xcode12.2
       script:
         - export OPENSSL_ROOT_DIR=`brew --prefix openssl` # Used by libcurl for 'CHECK_FOR_UPDATES' capability
         - cmake .. -DBUILD_EXAMPLES=true -DBUILD_WITH_OPENMP=false -DHWM_OVER_XU=false -DCHECK_FOR_UPDATES=true
@@ -153,11 +155,13 @@ install:
       sudo apt-get install libglfw3-dev libglfw3;
     fi
 
+# Currently build on VS2017, VS2015 is temporary unavailable (Microsoft issue)
+# This would go inside the following if:
+#    if [[ "$VS15" == "true" ]]; then
+#        choco install -y vcbuildtools --version 2015.4 --force;
+#    fi;
   - if [[ "$TRAVIS_OS_NAME" == "windows" ]]; then
       choco install -y python3 --version 3.8.1;
-      if [[ "$VS15" == "true" ]]; then
-        choco install -y vcbuildtools --version 2015.4 --force;
-      fi;
     fi
 
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then

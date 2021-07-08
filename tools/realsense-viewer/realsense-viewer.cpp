@@ -118,7 +118,7 @@ void add_playback_device(context& ctx, device_models_list& device_models,
                             {
                                 if (sub->streaming)
                                 {
-                                    sub->stop(viewer_model);
+                                    sub->stop(viewer_model.not_model);
                                 }
                             }
                         }
@@ -290,7 +290,12 @@ bool refresh_devices(std::mutex& m,
 
 int main(int argc, const char** argv) try
 {
+
+#ifdef BUILD_EASYLOGGINGPP
     rs2::log_to_console(RS2_LOG_SEVERITY_WARN);
+#endif
+
+    std::shared_ptr<device_models_list> device_models = std::make_shared<device_models_list>();
 
     context ctx;
     ux_window window("Intel RealSense Viewer", ctx);
@@ -302,7 +307,6 @@ int main(int argc, const char** argv) try
     std::string error_message{ "" };
     std::string label{ "" };
 
-    std::shared_ptr<device_models_list> device_models = std::make_shared<device_models_list>();
     device_model* device_to_remove = nullptr;
     bool is_ip_device_connected = false;
     std::string ip_address;
@@ -572,8 +576,8 @@ int main(int argc, const char** argv) try
                         {
                             is_ip_device_connected = add_remote_device(ctx, ip_address);;
                             refresh_devices(m, ctx, devices_connection_changes, connected_devs, device_names, *device_models, viewer_model, error_message);
-                            auto dev = connected_devs[connected_devs.size() - 1];
-                            device_models->emplace_back(new device_model(dev, error_message, viewer_model));
+                            // auto dev = connected_devs[connected_devs.size() - 1];
+                            // device_models->emplace_back(new device_model(dev, error_message, viewer_model));
                             config_file::instance().set(configurations::viewer::last_ip, ip_address);
                         }
                         catch (std::runtime_error e)
@@ -625,7 +629,7 @@ int main(int argc, const char** argv) try
 
         auto output_rect = rect{ viewer_model.panel_width,
             window.height() - viewer_model.get_output_height(),
-            window.width() - viewer_model.panel_width, viewer_model.get_output_height() };
+            window.width() - viewer_model.panel_width, float(viewer_model.get_output_height()) };
 
         viewer_model.not_model->output.draw(window, output_rect, *device_models);
 
@@ -735,7 +739,7 @@ int main(int argc, const char** argv) try
         for (auto&& sub : device_model->subdevices)
         {
             if (sub->streaming)
-                sub->stop(viewer_model);
+                sub->stop(viewer_model.not_model);
         }
 
     return EXIT_SUCCESS;

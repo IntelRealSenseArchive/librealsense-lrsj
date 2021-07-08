@@ -1266,6 +1266,7 @@ const char* rs2_option_to_string(rs2_option option)                             
 const char* rs2_camera_info_to_string(rs2_camera_info info)                               { return librealsense::get_string(info);         }
 const char* rs2_timestamp_domain_to_string(rs2_timestamp_domain info)                     { return librealsense::get_string(info);         }
 const char* rs2_notification_category_to_string(rs2_notification_category category)       { return librealsense::get_string(category);     }
+const char* rs2_calib_target_type_to_string(rs2_calib_target_type type)                   { return librealsense::get_string(type);         }
 const char* rs2_sr300_visual_preset_to_string(rs2_sr300_visual_preset preset)             { return librealsense::get_string(preset);       }
 const char* rs2_log_severity_to_string(rs2_log_severity severity)                         { return librealsense::get_string(severity);     }
 const char* rs2_exception_type_to_string(rs2_exception_type type)                         { return librealsense::get_string(type);         }
@@ -1278,7 +1279,7 @@ const char* rs2_l500_visual_preset_to_string(rs2_l500_visual_preset preset)     
 const char* rs2_sensor_mode_to_string(rs2_sensor_mode mode)                               { return get_string(mode); }
 const char* rs2_ambient_light_to_string( rs2_ambient_light ambient )                      { return get_string(ambient); }
 const char* rs2_digital_gain_to_string(rs2_digital_gain gain)                             { return get_string(gain); }
-const char* rs2_cah_trigger_to_string( rs2_cah_trigger mode )                             { return get_string(mode); }
+const char* rs2_cah_trigger_to_string( int mode )                                         { return "DEPRECATED as of 2.46"; }
 const char* rs2_calibration_type_to_string(rs2_calibration_type type)                     { return get_string(type); }
 const char* rs2_calibration_status_to_string(rs2_calibration_status status)               { return get_string(status); }
 const char* rs2_host_perf_mode_to_string(rs2_host_perf_mode mode)                         { return get_string(mode); }
@@ -1521,7 +1522,7 @@ rs2_device* rs2_context_add_device(rs2_context* ctx, const char* file, rs2_error
     VALIDATE_NOT_NULL(file);
 
     auto dev_info = ctx->ctx->add_device(file);
-    return new rs2_device{ ctx->ctx, dev_info, dev_info->create_device(false) };
+    return new rs2_device{ ctx->ctx, dev_info, dev_info->create_device() };
 }
 HANDLE_EXCEPTIONS_AND_RETURN(nullptr, ctx, file)
 
@@ -1670,7 +1671,7 @@ rs2_device* rs2_create_record_device_ex(const rs2_device* device, const char* fi
     return new rs2_device({
         device->ctx,
         device->info,
-        std::make_shared<record_device>(device->device, std::make_shared<ros_writer>(file, compression_enabled))
+        std::make_shared<record_device>(device->device, std::make_shared<ros_writer>(file, compression_enabled != 0))
         });
 }
 HANDLE_EXCEPTIONS_AND_RETURN(nullptr, device, file)
@@ -1960,7 +1961,7 @@ void rs2_config_enable_device_from_file_repeat_option(rs2_config* config, const 
     VALIDATE_NOT_NULL(config);
     VALIDATE_NOT_NULL(file);
 
-    config->config->enable_device_from_file(file, repeat_playback);
+    config->config->enable_device_from_file(file, repeat_playback != 0);
 }
 HANDLE_EXCEPTIONS_AND_RETURN(, config, file)
 
@@ -2398,6 +2399,26 @@ void rs2_pose_frame_get_pose_data(const rs2_frame* frame, rs2_pose* pose, rs2_er
 }
 HANDLE_EXCEPTIONS_AND_RETURN(, frame, pose)
 
+void rs2_extract_target_dimensions(const rs2_frame* frame_ref, rs2_calib_target_type calib_type, float* target_dims, unsigned int target_dims_size, rs2_error** error) BEGIN_API_CALL
+{
+    VALIDATE_NOT_NULL(frame_ref);
+    VALIDATE_NOT_NULL(target_dims_size);
+
+    auto vf = VALIDATE_INTERFACE(((frame_interface*)frame_ref), librealsense::video_frame);
+    if (vf->get_stream()->get_format() != RS2_FORMAT_Y8)
+        throw std::runtime_error("wrong video frame format");
+
+    std::shared_ptr<target_calculator_interface> target_calculator;
+    if (calib_type == RS2_CALIB_TARGET_RECT_GAUSSIAN_DOT_VERTICES)
+        target_calculator = std::make_shared<rect_gaussian_dots_target_calculator>(vf->get_width(), vf->get_height());
+    else
+        throw std::runtime_error("unsupported calibration target type");
+
+    if (!target_calculator->calculate(vf->get_frame_data(), target_dims, target_dims_size))
+        throw std::runtime_error("Failed to find the four rectangle side sizes on the frame");
+}
+HANDLE_EXCEPTIONS_AND_RETURN(, frame_ref, calib_type, target_dims, target_dims_size)
+
 rs2_time_t rs2_get_time(rs2_error** error) BEGIN_API_CALL
 {
     return environment::get_instance().get_time_service()->get_time();
@@ -2502,7 +2523,7 @@ rs2_stream_profile* rs2_software_sensor_add_video_stream_ex(rs2_sensor* sensor, 
 {
     VALIDATE_NOT_NULL(sensor);
     auto bs = VALIDATE_INTERFACE(sensor->sensor, librealsense::software_sensor);
-    return bs->add_video_stream(video_stream, is_default)->get_c_wrapper();
+    return bs->add_video_stream(video_stream, is_default != 0 )->get_c_wrapper();
 }
 HANDLE_EXCEPTIONS_AND_RETURN(0, sensor, video_stream.type, video_stream.index, video_stream.fmt, video_stream.width, video_stream.height, video_stream.uid, is_default)
 
@@ -2518,7 +2539,7 @@ rs2_stream_profile* rs2_software_sensor_add_motion_stream_ex(rs2_sensor* sensor,
 {
     VALIDATE_NOT_NULL(sensor);
     auto bs = VALIDATE_INTERFACE(sensor->sensor, librealsense::software_sensor);
-    return bs->add_motion_stream(motion_stream, is_default)->get_c_wrapper();
+    return bs->add_motion_stream(motion_stream, is_default != 0)->get_c_wrapper();
 }
 HANDLE_EXCEPTIONS_AND_RETURN(0, sensor, motion_stream.type, motion_stream.index, motion_stream.fmt, motion_stream.uid, is_default)
 
@@ -2534,7 +2555,7 @@ rs2_stream_profile* rs2_software_sensor_add_pose_stream_ex(rs2_sensor* sensor, r
 {
     VALIDATE_NOT_NULL(sensor);
     auto bs = VALIDATE_INTERFACE(sensor->sensor, librealsense::software_sensor);
-    return bs->add_pose_stream(pose_stream, is_default)->get_c_wrapper();
+    return bs->add_pose_stream(pose_stream, is_default != 0)->get_c_wrapper();
 }
 HANDLE_EXCEPTIONS_AND_RETURN(0, sensor, pose_stream.type, pose_stream.index, pose_stream.fmt, pose_stream.uid, is_default)
 
@@ -2561,7 +2582,7 @@ void rs2_software_sensor_add_option(rs2_sensor* sensor, rs2_option option, float
     VALIDATE_LE(0, step);
     VALIDATE_NOT_NULL(sensor);
     auto bs = VALIDATE_INTERFACE(sensor->sensor, librealsense::software_sensor);
-    return bs->add_option(option, option_range{ min, max, step, def }, bool(is_writable));
+    return bs->add_option(option, option_range{ min, max, step, def }, bool(is_writable != 0));
 }
 HANDLE_EXCEPTIONS_AND_RETURN(, sensor, option, min, max, step, def, is_writable)
 
@@ -2897,9 +2918,9 @@ void rs2_update_firmware_cpp(const rs2_device* device, const void* fw_image, int
 {
     VALIDATE_NOT_NULL(device);
     VALIDATE_NOT_NULL(fw_image);
-
-    if(fw_image_size <= 0)
-        throw std::runtime_error("invlid firmware image size provided to rs2_update_cpp");
+    // check if the given FW size matches the expected FW size
+    if (!val_in_range(fw_image_size, { signed_fw_size, signed_sr300_size }))
+        throw librealsense::invalid_value_exception(to_string() << "Unsupported firmware binary image provided - " << fw_image_size << " bytes");
 
     auto fwu = VALIDATE_INTERFACE(device->device, librealsense::update_device_interface);
 
@@ -2914,9 +2935,9 @@ void rs2_update_firmware(const rs2_device* device, const void* fw_image, int fw_
 {
     VALIDATE_NOT_NULL(device);
     VALIDATE_NOT_NULL(fw_image);
-
-    if (fw_image_size <= 0)
-        throw std::runtime_error("invlid firmware image size provided to rs2_update");
+    // check if the given FW size matches the expected FW size
+    if (!val_in_range(fw_image_size, { signed_fw_size, signed_sr300_size }))
+        throw librealsense::invalid_value_exception(to_string() << "Unsupported firmware binary image provided - " << fw_image_size << " bytes");
 
     auto fwu = VALIDATE_INTERFACE(device->device, librealsense::update_device_interface);
 
@@ -2937,7 +2958,7 @@ const rs2_raw_data_buffer* rs2_create_flash_backup_cpp(const rs2_device* device,
 
     auto fwud = std::dynamic_pointer_cast<updatable>(device->device);
     if (!fwud)
-        throw std::runtime_error("This device does not supports update protocol!");
+        throw std::runtime_error("This device does not support update protocol!");
 
     std::vector<uint8_t> res;
 
@@ -2956,7 +2977,7 @@ const rs2_raw_data_buffer* rs2_create_flash_backup(const rs2_device* device, rs2
 
     auto fwud = std::dynamic_pointer_cast<updatable>(device->device);
     if (!fwud)
-        throw std::runtime_error("This device does not supports update protocol!");
+        throw std::runtime_error("This device does not support update protocol!");
 
     std::vector<uint8_t> res;
 
@@ -2977,13 +2998,13 @@ void rs2_update_firmware_unsigned_cpp(const rs2_device* device, const void* imag
 {
     VALIDATE_NOT_NULL(device);
     VALIDATE_NOT_NULL(image);
-
-    if (image_size <= 0)
-        throw std::runtime_error("invlid firmware image size provided to rs2_update_firmware_unsigned_cpp");
+    // check if the given FW size matches the expected FW size
+    if (!val_in_range(image_size, { unsigned_fw_size, unsigned_sr300_size }))
+        throw librealsense::invalid_value_exception(to_string() << "Unsupported firmware binary image (unsigned) provided - " << image_size << " bytes");
 
     auto fwud = std::dynamic_pointer_cast<updatable>(device->device);
     if (!fwud)
-        throw std::runtime_error("This device does not supports update protocol!");
+        throw std::runtime_error("This device does not support update protocol!");
 
     std::vector<uint8_t> buffer((uint8_t*)image, (uint8_t*)image + image_size);
 
@@ -2998,13 +3019,13 @@ void rs2_update_firmware_unsigned(const rs2_device* device, const void* image, i
 {
     VALIDATE_NOT_NULL(device);
     VALIDATE_NOT_NULL(image);
-
-    if (image_size <= 0)
-        throw std::runtime_error("invlid firmware image size provided to rs2_update_firmware_unsigned");
+    // check if the given FW size matches the expected FW size
+    if (!val_in_range(image_size, { unsigned_fw_size, unsigned_sr300_size }))
+        throw librealsense::invalid_value_exception(to_string() << "Unsupported firmware binary image (unsigned) provided - " << image_size << " bytes");
 
     auto fwud = std::dynamic_pointer_cast<updatable>(device->device);
     if (!fwud)
-        throw std::runtime_error("This device does not supports update protocol!");
+        throw std::runtime_error("This device does not support update protocol!");
 
     std::vector<uint8_t> buffer((uint8_t*)image, (uint8_t*)image + image_size);
 
@@ -3019,13 +3040,33 @@ void rs2_update_firmware_unsigned(const rs2_device* device, const void* image, i
 }
 HANDLE_EXCEPTIONS_AND_RETURN(, image, device)
 
+int rs2_check_firmware_compatibility(const rs2_device* device, const void* fw_image, int fw_image_size, rs2_error** error) BEGIN_API_CALL
+{
+    VALIDATE_NOT_NULL(device);
+    VALIDATE_NOT_NULL(fw_image);
+    // check if the given FW size matches the expected FW size
+    if (!val_in_range(fw_image_size, { signed_fw_size, signed_sr300_size }))
+        throw librealsense::invalid_value_exception(to_string() << "Unsupported firmware binary image provided - " << fw_image_size << " bytes");
+
+    auto fwud = std::dynamic_pointer_cast<updatable>(device->device);
+    if (!fwud)
+        throw std::runtime_error("This device does not support update protocol!");
+
+    std::vector<uint8_t> buffer((uint8_t*)fw_image, (uint8_t*)fw_image + fw_image_size);
+
+    bool res = fwud->check_fw_compatibility(buffer);
+
+    return res ? 1 : 0;
+}
+HANDLE_EXCEPTIONS_AND_RETURN(0, fw_image, device)
+
 void rs2_enter_update_state(const rs2_device* device, rs2_error** error) BEGIN_API_CALL
 {
     VALIDATE_NOT_NULL(device);
 
     auto fwud = std::dynamic_pointer_cast<updatable>(device->device);
     if (!fwud)
-        throw std::runtime_error("this device does not supports fw update");
+        throw std::runtime_error("this device does not support fw update");
     fwud->enter_update_state();
 }
 HANDLE_EXCEPTIONS_AND_RETURN(, device)
@@ -3388,6 +3429,4 @@ rs2_raw_data_buffer* rs2_terminal_parse_response(rs2_terminal_parser* terminal_p
     return new rs2_raw_data_buffer{ result };
 }
 HANDLE_EXCEPTIONS_AND_RETURN(nullptr, terminal_parser, command, response)
-
-
 

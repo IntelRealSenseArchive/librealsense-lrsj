@@ -32,8 +32,10 @@ namespace librealsense
         _decoder = h._decoder;
     }
 
-    void polling_error_handler::start()
+    void polling_error_handler::start( unsigned int poll_intervals_ms )
     {
+        if( poll_intervals_ms )
+            _poll_intervals_ms = poll_intervals_ms;
         _active_object->start();
     }
     void polling_error_handler::stop()
@@ -43,7 +45,7 @@ namespace librealsense
 
     void polling_error_handler::polling(dispatcher::cancellable_timer cancellable_timer)
     {
-         if (cancellable_timer.try_sleep(_poll_intervals_ms))
+         if (cancellable_timer.try_sleep( std::chrono::milliseconds( _poll_intervals_ms )))
          {
              try
              {

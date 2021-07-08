@@ -365,9 +365,11 @@ namespace librealsense
         _data_dispatcher->start();
         register_metadata(RS2_FRAME_METADATA_ACTUAL_EXPOSURE, std::make_shared<md_tm2_parser>(RS2_FRAME_METADATA_ACTUAL_EXPOSURE));
         register_metadata(RS2_FRAME_METADATA_TEMPERATURE    , std::make_shared<md_tm2_parser>(RS2_FRAME_METADATA_TEMPERATURE));
-        //Replacing md parser for RS2_FRAME_METADATA_TIME_OF_ARRIVAL
-        _metadata_parsers->find(RS2_FRAME_METADATA_TIME_OF_ARRIVAL)->second = std::make_shared<md_tm2_parser>(RS2_FRAME_METADATA_TIME_OF_ARRIVAL);
-        _metadata_parsers->find(RS2_FRAME_METADATA_FRAME_TIMESTAMP)->second = std::make_shared<md_tm2_parser>(RS2_FRAME_METADATA_FRAME_TIMESTAMP);
+        //Replacing md parser for TIME_OF_ARRIVAL and FRAME_TIMESTAMP
+        _metadata_parsers->erase(RS2_FRAME_METADATA_TIME_OF_ARRIVAL);
+        _metadata_parsers->erase(RS2_FRAME_METADATA_FRAME_TIMESTAMP);
+        register_metadata(RS2_FRAME_METADATA_TIME_OF_ARRIVAL,std::make_shared<md_tm2_parser>(RS2_FRAME_METADATA_TIME_OF_ARRIVAL));
+        register_metadata(RS2_FRAME_METADATA_FRAME_TIMESTAMP, std::make_shared<md_tm2_parser>(RS2_FRAME_METADATA_FRAME_TIMESTAMP));
 
         // Set log level
         bulk_message_request_log_control log_request = {{ sizeof(log_request), DEV_LOG_CONTROL }};
@@ -1090,7 +1092,7 @@ namespace librealsense
         pose_frame_metadata frame_md = { 0 };
         frame_md.arrival_ts = duration_cast<std::chrono::nanoseconds>(ts.arrival_ts).count();
 
-        frame_additional_data additional_data(ts.device_ts.count(), frame_num++, ts.arrival_ts.count(), sizeof(frame_md), (uint8_t*)&frame_md, ts.global_ts.count(), 0, 0, false);
+        frame_additional_data additional_data(ts.device_ts.count(), frame_num++, ts.arrival_ts.count(), sizeof(frame_md), (uint8_t*)&frame_md, ts.global_ts.count(), 0, 0, false, 0.0);
 
         // Find the frame stream profile
         std::shared_ptr<stream_profile_interface> profile = nullptr;
@@ -1182,7 +1184,7 @@ namespace librealsense
         video_frame_metadata video_md{};
         video_md.arrival_ts = duration_cast<std::chrono::nanoseconds>(ts.arrival_ts).count();
         video_md.exposure_time = message->metadata.dwExposuretime;
-        frame_additional_data additional_data(ts.device_ts.count(), message->rawStreamHeader.dwFrameId, ts.arrival_ts.count(), sizeof(video_md), (uint8_t*)&video_md, ts.global_ts.count(), 0, 0, false);
+        frame_additional_data additional_data(ts.device_ts.count(), message->rawStreamHeader.dwFrameId, ts.arrival_ts.count(), sizeof(video_md), (uint8_t*)&video_md, ts.global_ts.count(), 0, 0, false, 0.0);
 
         last_exposure = message->metadata.dwExposuretime;
         last_gain = message->metadata.fGain;
@@ -1326,8 +1328,8 @@ namespace librealsense
     void tm2_sensor::stop_interrupt()
     {
         if (_interrupt_request) {
+            _interrupt_callback->cancel();
             if (_device->cancel_request(_interrupt_request)) {
-                _interrupt_callback->cancel();
                 _interrupt_request.reset();
             }
         }
@@ -1387,8 +1389,8 @@ namespace librealsense
     void tm2_sensor::stop_stream()
     {
         if (_stream_request) {
+            _stream_callback->cancel();
             if (_device->cancel_request(_stream_request)) {
-                _stream_callback->cancel();
                 _stream_request.reset();
             }
         }
@@ -1506,7 +1508,7 @@ namespace librealsense
         motion_frame_metadata motion_md{};
         motion_md.arrival_ts = duration_cast<std::chrono::nanoseconds>(ts.arrival_ts).count();
         motion_md.temperature = temperature;
-        frame_additional_data additional_data(ts.device_ts.count(), frame_number, ts.arrival_ts.count(), sizeof(motion_md), (uint8_t*)&motion_md, ts.global_ts.count(), 0, 0, false);
+        frame_additional_data additional_data(ts.device_ts.count(), frame_number, ts.arrival_ts.count(), sizeof(motion_md), (uint8_t*)&motion_md, ts.global_ts.count(), 0, 0, false, 0.0);
 
         // Find the frame stream profile
         std::shared_ptr<stream_profile_interface> profile = nullptr;
@@ -1696,7 +1698,7 @@ namespace librealsense
         // Import the map by sending chunks of with id SLAM_SET_LOCALIZATION_DATA_STREAM
         auto res = perform_async_transfer(
             [this, &lmap_buf]() {
-                const int MAX_BIG_DATA_MESSAGE_LENGTH = 10250; //(10240 (10k) + large message header size) 
+                const int MAX_BIG_DATA_MESSAGE_LENGTH = 10250; //(10240 (10k) + large message header size)
                 size_t chunk_length = MAX_BIG_DATA_MESSAGE_LENGTH - offsetof(bulk_message_large_stream, bPayload);
                 size_t map_size = lmap_buf.size();
                 std::unique_ptr<uint8_t []> buf(new uint8_t[MAX_BIG_DATA_MESSAGE_LENGTH]);

@@ -40,11 +40,9 @@ namespace librealsense
         return result;
     }
 
-    device_hub::device_hub(std::shared_ptr<librealsense::context> ctx, int mask, int vid,
-                           bool register_device_notifications)
+    device_hub::device_hub(std::shared_ptr<librealsense::context> ctx, int mask, int vid)
         : _ctx(ctx), _vid(vid),
-          _device_changes_callback_id(0),
-          _register_device_notifications(register_device_notifications)
+          _device_changes_callback_id(0)
     {
         _device_list = filter_by_vid(_ctx->query_devices(mask), _vid);
 
@@ -82,7 +80,7 @@ namespace librealsense
             auto d = _device_list[ (_camera_index + i) % _device_list.size()];
             try
             {
-                auto dev = d->create_device(_register_device_notifications);
+                auto dev = d->create_device();
 
                 if(serial.size() > 0 )
                 {
@@ -124,7 +122,7 @@ namespace librealsense
         std::shared_ptr<device_interface> res = nullptr;
 
         // check if there is at least one device connected
-        _device_list = filter_by_vid(_ctx->query_devices(RS2_PRODUCT_LINE_ANY), _vid);
+        _device_list = _ctx->query_devices(RS2_PRODUCT_LINE_ANY);
         if (_device_list.size() > 0)
         {
             res = create_device(serial, loop_through_devices);
